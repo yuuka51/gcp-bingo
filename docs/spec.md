@@ -10,7 +10,7 @@ EARS形式の厳密な要件は `.kiro/specs/gcp-bingo/requirements.md` にあ�
 > - ゲーム開始時に景品を設定する機能は **作らない**(景品表は固定ファイル)
 > - アプリは **ランキングを出すところまで**。景品の受け渡し管理は含めない
 >
-> ⚠ `requirements.md` は現在このリポジトリにありません。この改訂に合わせた更新が必要です。
+> `requirements.md`(`.kiro/specs/gcp-bingo/requirements.md`)は、この改訂に合わせて更新済みです。
 
 ## 1. これは何か
 
