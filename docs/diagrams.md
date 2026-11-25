@@ -58,56 +58,102 @@ flowchart LR
 
 ## 2. DFD(データフロー図)
 
+### 2.1 コンテキストDFD
+
+システム全体と外部実体の関係を先に示します。
+
 ```mermaid
 flowchart LR
-  Host[外部実体: ホスト]
-  Player[外部実体: 参加者]
+  H["ホスト"]
+  U["参加者"]
+  APP(("ブラウザアプリ"))
+  AUTH[("Firebase Authentication<br/>匿名UID")]
+  FS[("Cloud Firestore<br/>rooms / players / events")]
+  LS[("ホスト端末 localStorage<br/>じゃんけん順")]
 
-  P1((1. 匿名認証・画面表示))
-  P2((2. ルーム作成・進行))
-  P3((3. 入室・カード管理))
-  P4((4. 抽選・穴開け・ビンゴ判定))
-  P5((5. ランキング集計・発表))
-
-  Auth[(D1: Firebase Auth<br/>匿名UID)]
-  Rooms[(D2: rooms/{roomId}<br/>お題・drawn・状態・時間・景品数・発表結果)]
-  Players[(D3: players/{uid}<br/>名前・カード・marked・列数)]
-  Events[(D4: events/{uid}<br/>初回ビンゴ通知)]
-  Local[(D5: ホスト localStorage<br/>じゃんけん順)]
-
-  Host -->|ページを開く| P1
-  Player -->|QRのURLを開く| P1
-  P1 -->|匿名サインイン| Auth
-  Auth -->|UID| P1
-
-  Host -->|お題JSON・時間配分・景品数・開始/終了操作| P2
-  P2 -->|作成・更新| Rooms
-  Rooms -->|状態・抽選結果・発表結果| P2
-  P2 -->|QR・進行状況・抽選結果| Host
-
-  Player -->|名前| P3
-  P3 -->|カード作成・本人データ保存| Players
-  Players -->|同じカード・穴の状態| P3
-  P3 -->|カード画面| Player
-
-  Host -->|抽選操作| P4
-  P4 -->|トランザクションで drawn 更新| Rooms
-  Rooms -->|抽選済みお題| P4
-  Player -->|抽選済みマスをタップ| P4
-  P4 -->|marked・bingoCount・bingoAt| Players
-  P4 -->|初回ビンゴを1件だけ作成| Events
-  Events -->|新規ビンゴ通知| P4
-  P4 -->|穴の表示・ビンゴ通知| Player
-  P4 -->|達成者一覧| Host
-
-  Host -->|集計・じゃんけん結果・次を発表| P5
-  Rooms -->|drawn・景品数| P5
-  Players -->|全員のcard・marked| P5
-  P5 <-->|同順位の並べ替え| Local
-  P5 -->|発表した1人だけresultへ追加| Rooms
-  Rooms -->|発表済み順位だけ配信| Player
-  P5 -->|ランキング操作画面| Host
+  H <-->|"進行操作 / 結果表示"| APP
+  U <-->|"入室・穴開け / カード・通知・結果"| APP
+  APP <-->|"匿名サインイン / UID"| AUTH
+  APP <-->|"Rulesを通した読み書き・購読"| FS
+  APP <-->|"同順位の並べ替え"| LS
 ```
+
+### 2.2 詳細DFD
+
+矢印のラベルを短いフローIDにし、線の交差と長文による崩れを抑えています。
+
+```mermaid
+flowchart LR
+  subgraph EXT["外部実体"]
+    direction TB
+    H["ホスト"]
+    U["参加者"]
+  end
+
+  subgraph PROC["ブラウザ内の処理"]
+    direction TB
+    P1(("P1 匿名認証"))
+    P2(("P2 ルーム作成・進行"))
+    P3(("P3 入室・カード管理"))
+    P4(("P4 抽選・穴開け・ビンゴ"))
+    P5(("P5 ランキング・発表"))
+  end
+
+  subgraph STORE["データストア"]
+    direction TB
+    D1[("D1 Firebase Auth")]
+    D2[("D2 rooms / roomId")]
+    D3[("D3 players / uid")]
+    D4[("D4 events / uid")]
+    D5[("D5 host localStorage")]
+  end
+
+  H -->|F1| P1
+  U -->|F1| P1
+  P1 <-->|F2| D1
+
+  H <-->|F3| P2
+  P2 <-->|F4| D2
+
+  U <-->|F5| P3
+  P3 <-->|F6| D3
+
+  H <-->|F7| P4
+  U <-->|F8| P4
+  P4 <-->|F9| D2
+  P4 -->|F10| D3
+  P4 -->|F11| D4
+  D4 -->|F12| P4
+
+  H <-->|F13| P5
+  D2 -->|F14| P5
+  D3 -->|F15| P5
+  P5 <-->|F16| D5
+  P5 -->|F17| D2
+  D2 -->|F18| U
+```
+
+| フロー | 内容 |
+|---|---|
+| F1 | ページを開き、匿名認証を開始 |
+| F2 | 匿名サインインとUIDの受け取り |
+| F3 | お題、時間、景品数、開始・終了操作と進行表示 |
+| F4 | ルームの作成・更新、状態・抽選結果の購読 |
+| F5 | 名前の入力、カードと識別コードの表示 |
+| F6 | カード、穴の状態、列数の保存・復元 |
+| F7 | 抽選操作と達成者一覧 |
+| F8 | 抽選済みマスのタップ、穴の表示、ビンゴ通知 |
+| F9 | `drawn[]` のトランザクション更新と購読 |
+| F10 | `marked`、`bingoCount`、`bingoAt` の更新 |
+| F11 | 初回ビンゴイベントを1件作成 |
+| F12 | 新規ビンゴイベントを通知へ変換 |
+| F13 | 集計、じゃんけん結果、発表操作とランキング画面 |
+| F14 | 抽選順、状態、景品数、発表済み結果を読む |
+| F15 | 全参加者のカードと穴の状態を読む |
+| F16 | 同順位の並べ替えをホスト端末へ保存・復元 |
+| F17 | 発表した1人だけを `result.entries` へ追加 |
+| F18 | 発表済み順位だけを参加者へ配信 |
+
 
 ### 主なデータと公開範囲
 
