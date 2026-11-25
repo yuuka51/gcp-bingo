@@ -87,8 +87,8 @@ firestore.rules  firestore.indexes.json  firebase.json
 ### 5.1 トップ(`views/home.js`)
 
 1. 匿名サインイン(`signInAnonymously`)。
-2. お題 JSON を貼り付け、またはファイル選択。`lib/topics.js` で検証し、件数と一覧、エラー位置を表示(R1-1〜R1-3)。
-3. 24個未満なら「ルーム作成」を無効にし、不足数を表示(R1-4)。
+2. お題 JSON を貼り付け、またはファイル選択。`lib/topics.js` で必須フィールド、文字数(`id`:64、`name`:80、`desc`:200、`iconKey`:64)、ID重複、件数、UTF-8サイズを検証し、件数と一覧、エラー位置を表示(R1-1〜R1-5)。サイズは `TextEncoder` で測る。
+3. 24個未満、100個超、または直列化後のUTF-8サイズが256 KiB超なら「ルーム作成」を無効にし、理由を表示する(R1-4、R1-5)。
 4. タイトルを入力して作成。`addDoc(rooms)` で自動 ID を得る(R2-1)。作成後に `#/host/:roomId` へ移動する。
 
 ### 5.2 ホスト画面(`views/host.js`)
@@ -138,7 +138,7 @@ firestore.rules  firestore.indexes.json  firebase.json
 | `hostUid` | string | ホストの UID |
 | `title` | string | ルーム名 |
 | `status` | string | `open` / `ranking` / `closed` |
-| `topics` | array of map | `{id, name, desc, iconKey}`、24個以上 |
+| `topics` | array of map | `{id, name, desc, iconKey}`、24〜100個、直列化後のUTF-8サイズは256 KiB以下 |
 | `drawn` | array of string | 抽選済みお題の id(抽選順) |
 | `createdAt` | timestamp | サーバー時刻 |
 | `schedule` | map | `{startedAt: timestamp or null, introMin, drawMin, rankingMin, bufferMin}`。既定は 3, 20, 5, 2 |
@@ -314,7 +314,8 @@ service cloud.firestore {
         && request.resource.data.hostUid == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.drawn.size() == 0
-        && request.resource.data.topics.size() >= 24;
+        && request.resource.data.topics.size() >= 24
+        && request.resource.data.topics.size() <= 100;
       allow update: if signedIn()
         && resource.data.hostUid == request.auth.uid
         && request.resource.data.hostUid == resource.data.hostUid
@@ -368,6 +369,7 @@ service cloud.firestore {
 | `rooms` の list | 拒否 |
 | ホスト以外の `rooms` 更新 | 拒否 |
 | ホストの `open → ranking → closed` | 許可 |
+| お題が24個未満または100個超の `rooms` 作成 | 拒否 |
 | ホストの `open → closed` | 許可 |
 | ホストの `ranking → open`、`closed → open` | 拒否 |
 | 本人の `players` 作成(`open`) | 許可 |
@@ -463,6 +465,8 @@ Spark の日次上限は、読み取り 50,000、書き込み 20,000(いずれ�
 | 単体 | `lib/` の純関数(`topics`、`bingo`、`ranking`、`timekeeper`、`prizes`) | `node --test tests/unit` |
 | Rules | `firestore.rules` | `firebase emulators:exec --only firestore "node --test tests/rules"` |
 | 手動 | 画面操作、ホストと参加者の連携、スマホ実機 | デモの会の前に、チェックリストで確認する |
+
+`topics.js` の単体テストで、24個未満、100個超、各フィールドの文字数超過、重複ID、UTF-8サイズ256 KiB超を拒否することを確認する。
 
 `ranking.js` の単体テストで、次を確認する。
 
