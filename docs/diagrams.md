@@ -9,7 +9,7 @@
 ```mermaid
 flowchart LR
   subgraph Clients[利用者のブラウザ]
-    H[ホスト画面<br/>HTML + ES Modules]
+    H[ホスト画面<br/>HTML + JavaScript ES Modules]
     P1[参加者画面<br/>スマートフォン]
     P2[参加者画面<br/>最大約100人]
   end

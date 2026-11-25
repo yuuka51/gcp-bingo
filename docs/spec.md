@@ -32,7 +32,8 @@ Google Cloud のサービス名をお題にした、イベント用のビンゴ�
 | 使うもの | Firebase Hosting、Firestore、匿名認証 |
 | 使わないもの | Cloud Functions、Cloud Run |
 | 料金 | 無料の Spark プランに収める |
-| フロント | ビルド不要の HTML + ES Modules。SDK と QR ライブラリは CDN。Node はテスト実行だけに使う |
+| 実装言語 | JavaScript(ES Modules)。TypeScriptやReactなどのフレームワークは使わない |
+| フロント | HTML + CSS + JavaScriptをビルドなしで配信。SDK と QR ライブラリは CDN。Node はテスト実行だけに使う |
 | 図 | インフラ構成図、DFD、フローチャートは `docs/diagrams.md` |
 | 画面 | スマホ縦画面を第一に考える |
 
