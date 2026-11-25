@@ -11,7 +11,7 @@
 ### 技術制約(変更しない)
 
 - Firebase Hosting + Firestore + Firebase Authentication(匿名認証)のみ。Cloud Functions / Cloud Run は使わない。無料の Spark プランで動くこと。
-- フロントはビルド不要(HTML + ES Modules、Firebase SDK と QR 生成ライブラリは CDN)。追加が必要な場合は理由を示す。
+- フロントはビルド不要(HTML + ES Modules、Firebase SDK と QR 生成ライブラリは CDN)。追加が必要な場合は理由を示す。Node はテストの実行にだけ使い、アプリ本体の配信にはビルド工程を設けない。
 - スマホ縦画面を第一としたレスポンシブ。
 - 「簡単に作れて確実に動く」ことを最優先し、凝った機能は入れない。
 
@@ -50,6 +50,7 @@
 3. IF お題の `id` に重複がある THEN THE システム SHALL エラーを表示し、登録を受け付けない。
 4. IF 有効なお題が24個未満 THEN THE システム SHALL ルーム作成を無効にし、不足数を表示する。
 5. THE システム SHALL 30件前後のサンプルお題 JSON をリポジトリに含める。
+   THE README SHALL 本番用のお題を35〜40個用意することを推奨として案内する(抽選20回の目安と景品数が釣り合う目安。根拠は design.md のシミュレーション)。
 6. THE サンプル JSON の `desc` SHALL 各サービスの正確な一言説明とする(内容はオーナーが後日確認する)。
 
 ### 要件2: ルーム作成と参加用QRコード(ホスト)
@@ -140,7 +141,7 @@
 3. IF 該当お題のアイコン画像が未配置 THEN THE システム SHALL 汎用プレースホルダーを表示する。
 4. WHEN 参加者が、抽選済みお題のマスをタップする THE システム SHALL そのマスの番号を `marked[]` に追加して保存し、穴を開けた表示にする。
 5. IF タップされたマスのお題が未抽選(FREE を除く) THEN THE システム SHALL 穴を開けず、その旨を短く表示する。
-6. THE システム SHALL 中央のFREEマスを最初から開いた状態として扱う。
+6. THE システム SHALL 中央のFREEマスを最初から開いた状態として扱う。`marked[]` には中央のマスの番号(12)を含めず、FREE は常に開いているものとして判定する。
 7. WHEN 参加者がリロードする THE システム SHALL `marked[]` に基づき、穴の状態を復元する。
 8. WHILE `status` が `open` でない THE システム SHALL 穴を開ける操作を受け付けない。
 9. THE システム SHALL ビンゴ達成後も、`status` が `open` の間は、抽選済みのマスを開けられるようにする(ダブルビンゴ以上を狙えるようにするため)。
@@ -163,6 +164,7 @@
 4. WHEN 本人がビンゴする(初めて1列揃う) THE システム SHALL 本人の画面に紙吹雪などの演出を表示する。
 5. WHEN `events` に新規イベントが追加される THE システム SHALL 他の参加者を含む全員の画面に「○○さんがビンゴ!」の通知を表示する。
 6. WHEN 参加者がリロードまたは後から入室する THE システム SHALL 過去のビンゴ通知を再表示しない。
+   THE システム SHALL 参加者の `events` の購読を、入室後に `at` が `joinedAt` より後のものに限り、入室前のイベントを読まない。購読開始時の最初の取得結果は、通知に使わない。
 7. THE システム SHALL 本人の画面に、現在揃っている列数を「ビンゴ」「ダブルビンゴ」「トリプルビンゴ」…のように表示する。列数はブラウザ側で `marked[]` から計算する。
 8. WHEN 列数が増える THE システム SHALL `players/{uid}.bingoCount` を更新する。更新は `players` 文書への書き込みのみとし、`events` は作成しない。
 9. THE システム SHALL 2列目以降のビンゴについて、全員向けの通知を出さない。
@@ -189,7 +191,7 @@
 1. THE Rules SHALL `rooms` コレクションの `list` を拒否し、`get` を認証済み(匿名を含む)のリクエストにのみ許可する。ルーム ID の推測困難性が、アクセス制御の前提である。
 2. THE Rules SHALL `rooms/{roomId}` の作成・更新を `hostUid == request.auth.uid` の場合のみ許可する(作成時は、リクエストの `hostUid` が自身の UID であること)。
 3. THE Rules SHALL `rooms/{roomId}` の削除を拒否する。
-4. THE Rules SHALL `players/{uid}` の作成・更新を、本人(`request.auth.uid == uid`)かつ `status` が `open` の場合のみ許可する。
+4. THE Rules SHALL `players/{uid}` の作成・更新を、本人(`request.auth.uid == uid`)かつ `status` が `open` の場合のみ許可する。更新できるフィールドは `marked`、`bingoCount`、`bingoAt` に限り、`name` と `card` の書き換えを拒否する。
 5. THE Rules SHALL `players/{uid}` の読み取りを、本人とそのルームのホストのみに許可する。
 6. THE Rules SHALL `events/{eventId}` の作成を、`eventId == request.auth.uid` かつ `uid == request.auth.uid` かつ `status` が `open` の場合のみ許可する。同じ `eventId` への2回目の作成(更新扱い)は拒否される。更新・削除は拒否する。
 7. THE Rules SHALL `events` の読み取りを、認証済みのリクエストに許可する。
@@ -277,10 +279,11 @@
 #### 受け入れ基準
 
 1. THE システム SHALL 列数と、その列数に到達した時点の完成回がともに同じ参加者を、同順位とする。
-2. WHEN 同順位の組がある THE システム SHALL ホスト画面に、組ごとに「じゃんけん」の印をつけて表示する。
+2. WHEN 賞の対象範囲(ダブルビンゴ以上賞の数とビンゴ賞の数の人数)にかかる同順位の組がある THE システム SHALL ホスト画面に、組ごとに「じゃんけん」の印をつけて表示する。賞の対象範囲に入らない組には印をつけない。
 3. THE システム SHALL 同順位の組の中で、ホストが上下ボタンで順番を入れ替えられるようにする。
-4. IF 同順位が1組でも残っている THEN THE システム SHALL 発表の操作に進ませない。
+4. IF 賞の対象範囲にかかる同順位が1組でも残っている THEN THE システム SHALL 発表の操作に進ませない。賞外の組の解消は求めない。
 5. THE システム SHALL じゃんけん自体を行わない。会場で行った結果を、ホストが画面に反映する。
+6. THE システム SHALL 並べ替えた結果を、ホスト端末のローカル保存(`localStorage`)に保存し、Firestore には書かない。ホストがリロードしても、じゃんけんをやり直さなくてよい。
 
 ### 要件17: ランキングと景品の発表
 
