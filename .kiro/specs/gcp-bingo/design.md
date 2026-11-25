@@ -490,13 +490,65 @@ Spark の日次上限は、読み取り 50,000、書き込み 20,000(いずれ�
 ## 15. 実装の順序(tasks.md の下書き)
 
 1. リポジトリの土台(`firebase.json`、`.gitignore`、`firebase-config.example.js`、`LICENSE`、`README` の骨子)
-2. 純関数(`topics`、`bingo`、`prizes`)と単体テスト
-3. Firestore Rules と Rules テスト
-4. トップ(お題登録、ルーム作成)
-5. 参加者画面(入室、カード、穴開け、抽選済み一覧)
-6. ホスト画面(QR、抽選、トランザクション)
-7. ビンゴ判定、`events`、通知、列数表示、達成者一覧
-8. タイムキーパー(`timekeeper` と表示)、景品数の設定、抽選終了の提案
-9. ランキング(`ranking`、同順位、発表、参加者のランキングタブ)
-10. アイコン、プレースホルダー、フッター、`noindex`、`docs/icons.md`
-11. README の仕上げ、サンプル JSON、リハーサル(無料枠の実測)
+2. 秘密情報保護(`.gitleaks.toml`、共通スキャン、pre-commit / pre-push、secret-scan CI、運用書)
+3. 純関数(`topics`、`bingo`、`prizes`)と単体テスト
+4. Firestore Rules と Rules テスト
+5. トップ(お題登録、ルーム作成)
+6. 参加者画面(入室、カード、穴開け、抽選済み一覧)
+7. ホスト画面(QR、抽選、トランザクション)
+8. ビンゴ判定、`events`、通知、列数表示、達成者一覧
+9. タイムキーパー(`timekeeper` と表示)、景品数の設定、抽選終了の提案
+10. ランキング(`ranking`、同順位、発表、参加者のランキングタブ)
+11. アイコン、プレースホルダー、フッター、`noindex`、`docs/icons.md`
+12. README の仕上げ、サンプル JSON、リハーサル(無料枠の実測)
+
+## 16. 秘密情報検査とCI
+
+### 16.1 ファイル構成
+
+```text
+.gitleaks.toml                    Gitleaksの追加ルールと最小限の許可設定
+.githooks/pre-commit             ステージ済み変更を検査
+.githooks/pre-push               リモートとの差分を再検査
+.github/workflows/secret-scan.yml PRとpushで検査
+scripts/secret-scan.sh           ローカルとCIの共通エントリーポイント
+scripts/setup-git-hooks.sh       core.hooksPathを設定
+docs/security.md                 開発者向け運用手順
+```
+
+### 16.2 共通スキャン
+
+`scripts/secret-scan.sh` を検査の正本にし、ローカルフックとGitHub Actionsが同じ処理を呼ぶ。
+
+1. 固定バージョンのGitleaksを実行する。
+2. 次のコミット禁止ファイルを検査する: `firebase-config.js`、`.firebaserc`、`.env`、`.env.*`(exampleを除く)、`*-service-account*.json`、`application_default_credentials.json`、`*.pem`、`*.key`。
+3. GCP固有の危険な特徴を検査する: `private_key` と `client_email` を含むサービスアカウントJSON、秘密鍵ヘッダー、`GOOGLE_APPLICATION_CREDENTIALS`、`FIREBASE_TOKEN`。
+4. 検出時は値をログへ出さず、Gitleaksのredact機能などでマスクして終了コードを非0にする。
+
+Gitleaksの具体的なバージョンとCLI引数は、実装時に公式ドキュメントで確認して固定する。ローカルとCIで同じバージョンを使う。
+
+### 16.3 ローカルフック
+
+- pre-commitはステージ済み変更を検査し、秘密情報がコミットへ入る前に止める。
+- pre-pushはリモートとの差分を検査し、導入前のコミットやpre-commitの設定漏れを補う。
+- `scripts/setup-git-hooks.sh` が `git config core.hooksPath .githooks` を設定する。
+- `--no-verify` で回避できるため、ローカルフックは必須チェックの代わりにしない。
+
+### 16.4 GitHub Actions
+
+`secret-scan.yml` は `pull_request` と `push` で実行する。履歴を省略せず取得し、PRまたはpushに含まれるコミットを検査する。
+
+- secret scanをPRの必須チェックにする。
+- 自動デプロイは行わない(R12-6)。
+- 意図的なダミー秘密情報を使った検査テストを用意し、ジョブが失敗することを確認する。実在する形式の有効な認証情報は使わない。
+- 誤検知は値を変更することを優先し、必要な場合だけ `.gitleaks.toml` へ最小範囲の許可と理由を記録する。広範囲な除外やbaselineでの一括無視はしない。
+
+### 16.5 GitHubとGoogle Cloudの設定
+
+- GitHub Secret ScanningとPush Protectionを有効化し、`docs/security.md` のチェックリストで確認する。
+- Firebase Web APIキーは公開される前提とし、Google Cloud側で利用可能APIとFirebase HostingドメインのHTTPリファラーを必要最小限に制限する。
+- 将来CIデプロイを追加する場合は、GitHub OIDC → Workload Identity Federation → 最小権限サービスアカウントの順で短時間認証する。サービスアカウントJSONは作成・保存しない。
+
+### 16.6 漏えい時対応
+
+リモートへ出た認証情報は漏えい済みとして扱う。最初に認証情報を無効化・ローテーションし、その後にログと露出範囲を確認し、必要ならGit履歴を修正する。履歴の削除だけで安全になったとは判断しない。

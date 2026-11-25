@@ -219,7 +219,7 @@
 
 #### 受け入れ基準
 
-1. THE リポジトリ SHALL API キーやサービスアカウントなどの秘密情報をコミットしない。
+1. THE リポジトリ SHALL サービスアカウント鍵、秘密鍵、CLI・CIトークン、実環境のローカル設定などの秘密情報をコミットしない。Firebase Web APIキーは公開設定として要件19-5に従って扱う。
 2. THE リポジトリ SHALL `firebase-config.example.js` と `.firebaserc.example` をコミットし、実際の `firebase-config.js` と `.firebaserc` を `.gitignore` に含める。
 3. THE リポジトリ SHALL Google のアイコン画像を含めず、`public/icons/` を `.gitignore` に含める。
 4. THE `docs/icons.md` SHALL 公式アイコン(https://cloud.google.com/icons)から取得して配置する手順と、`iconKey` とファイル名の対応を記載する。
@@ -314,6 +314,23 @@
 6. THE システム SHALL 景品数の合計を、要件14-1 の終了条件に使う。
 7. THE システム SHALL 景品数を、ランキング発表の時まで参加者画面に表示しない。`rooms.prizes` は認証済みなら技術的に読めるが、これを許容する。
 8. THE システム SHALL 景品表のファイル(`public/prizes.json` など)を持たない。
+
+### 要件19: 開発・公開時の秘密情報保護
+
+**ユーザーストーリー:** 開発者として、Google CloudやFirebaseの認証情報を公開リポジトリへ混入させたくない。アカウントとクラウド資源を守るため。
+
+#### 受け入れ基準
+
+1. THE リポジトリ SHALL Gitleaksによる秘密情報検査を提供し、Pull Request、featureブランチへのpush、`main` へのpushで実行する。
+2. WHEN 秘密情報、秘密鍵、サービスアカウントJSON、CLI・CIトークン、またはコミット禁止ファイルを検出する THE CI SHALL ジョブを失敗させる。
+3. THE リポジトリ SHALL ローカルのpre-commitとpre-pushから、CIと同じ共通スキャン処理を実行できるようにする。pre-commitを標準、pre-pushを補助とし、ローカルフックだけには依存しない。
+4. THE リポジトリ SHALL 実際の `firebase-config.js`、`.firebaserc`、`.env`、サービスアカウントJSON、Application Default Credentials、秘密鍵を追跡しない。exampleファイルにはプレースホルダーだけを含める。
+5. THE システム SHALL Firebase Web APIキーをブラウザから確認できる公開設定として扱い、秘匿性ではなくFirestore Rules、利用可能APIの制限、HTTPリファラー制限で保護する。
+6. THE 開発 SHALL サービスアカウントの長期鍵を、リポジトリ、GitHub Secrets、フロントエンド、ログのいずれにも保存しない。
+7. IF 将来GitHub Actionsによるデプロイを追加する THEN THE 開発 SHALL GitHub OIDCとGoogle Cloud Workload Identity Federationを使用し、短時間の認証情報と最小権限のサービスアカウントを使う。
+8. THE リポジトリ SHALL GitHub Secret ScanningとPush Protectionを有効にするための確認手順を文書化する。
+9. IF 秘密情報をリモートへpushした THEN THE 運用者 SHALL Git履歴の修正より先に、その認証情報を無効化またはローテーションする。
+10. THE リポジトリ SHALL 秘密情報検査のセットアップ、手動実行、誤検知対応、漏えい時対応を `docs/security.md` に記載する。
 
 ---
 

@@ -294,7 +294,11 @@ Spark の日次上限(読み取り5万件)に十分収まります。詳しい�
 - ルームIDは Firestore の自動ID(20文字)で、推測できません。この秘匿性が唯一の入口の守りです。
 - URLを知っている人は誰でも入室できます。会場のスクリーンにQRを映すと、URLは会場全員に見えます。READMEに明記します。
 - 全ページに `noindex`、`robots.txt` で `Disallow: /` を指定します。
-- 秘密情報は置きません。`firebase-config.js` と `.firebaserc` は `.gitignore` に入れ、`*.example` だけをコミットします。
+- サービスアカウント鍵、秘密鍵、CLIトークン、実環境のローカル設定はコミットしません。`firebase-config.js` と `.firebaserc` は `.gitignore` に入れ、プレースホルダーだけのexampleファイルをコミットします。
+- Firebase Web APIキーはデプロイ後にブラウザから見える公開設定です。秘密にすることへ依存せず、Firestore Rules、利用可能API、HTTPリファラーの制限で守ります。
+- Gitleaks、pre-commit、pre-push、GitHub Actions、GitHub Push Protectionを重ねて使います。ローカルフックは補助とし、PRとpushで動くCIを必須チェックにします。
+- 将来自動デプロイを追加する場合も、サービスアカウントJSONは使いません。GitHub OIDCとGoogle Cloud Workload Identity Federationを使用します。
+- セットアップ、禁止情報、誤検知対応、漏えい時のローテーション手順は `docs/security.md` にまとめます。
 - Googleのアイコン画像は含めません。`public/icons/` を `.gitignore` に入れ、`docs/icons.md` に取得手順と `iconKey` の対応を書きます。未配置の間は汎用プレースホルダーを表示します。
 - フッターに「各サービス名・アイコンはGoogle LLCの商標です」と表示します。
 - Rules は Firebase Emulator Suite でテストします。
